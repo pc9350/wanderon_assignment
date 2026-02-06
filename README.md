@@ -36,9 +36,13 @@ When a query hits the `FACT_FROM_DOCS` route:
 5. Run a groundedness check — a second LLM call that verifies the answer is actually backed by the chunks
 6. If it's not grounded, the response gets flagged and the confidence score takes a hit
 
-The vector store is just a JSON file with embeddings and cosine similarity done in-process. No Pinecone, no ChromaDB server, nothing external. It works, it's fast enough for this scale, and it keeps the setup dead simple.
+### Why no ChromaDB / Pinecone / external vector DB?
 
-The `data/docs/` folder has 4 documents I wrote covering Wanderon's company info, destinations, booking FAQs, and travel tips. In a real setup you'd swap these out for actual company data — the pipeline doesn't change.
+The knowledge base is 4 documents, ~30 chunks total. Running a whole vector database service for that is unnecessary overhead. Instead, the vector store here is just OpenAI embeddings saved to a JSON file, with cosine similarity computed in a loop. It does the exact same thing ChromaDB does internally — turn text into numbers, compare those numbers — just without the extra infrastructure.
+
+If the corpus grew to thousands of documents, swapping in ChromaDB or Pinecone would be straightforward since all the retrieval logic is behind one `retrieve()` function. But at this scale, keeping it simple made more sense than adding an external dependency for no real benefit.
+
+The `data/docs/` folder has 4 documents I wrote covering Wanderon's company info, destinations, booking FAQs, and travel tips. In a real setup you'd swap these out with actual company data — the retrieval pipeline stays the same.
 
 ## Tool Calling
 
@@ -121,7 +125,7 @@ npm run dev
 
 Then open `http://localhost:3000` — there's a simple chat UI for testing.
 
-## Example Queries (or Use the HTML frontend page to test.)
+## Example Queries (or Use the HTML page to test.)
 
 ```bash
 # travel question → RAG
