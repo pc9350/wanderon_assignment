@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wanderon AI Assistant</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 14px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header span { color: #e94560; }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .msg {
+      max-width: 720px;
+      line-height: 1.5;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: #1a1a2e;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 16px 16px 4px 16px;
+    }
+
+    .msg.bot {
+      align-self: flex-start;
+      background: #fff;
+      padding: 14px 18px;
+      border-radius: 16px 16px 16px 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .msg.bot .answer { margin-bottom: 10px; }
+
+    .trace-toggle {
+      font-size: 12px;
+      color: #e94560;
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    .trace {
+      display: none;
+      margin-top: 8px;
+      padding: 10px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: 'Consolas', monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #333;
+    }
+
+    .trace.open { display: block; }
+
+    .meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .tag.route { background: #e8f4fd; color: #1a73e8; }
+    .tag.confidence { background: #e6f4ea; color: #1e8e3e; }
+    .tag.tool { background: #fef7e0; color: #b06000; }
+    .tag.grounded { background: #fce8e6; color: #c5221f; }
+    .tag.grounded.yes { background: #e6f4ea; color: #1e8e3e; }
+
+    .feedback {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .feedback button {
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .feedback button:hover { background: #f0f0f0; }
+    .feedback button.picked { border-color: #1a73e8; background: #e8f4fd; }
+
+    #input-bar {
+      padding: 16px 24px;
+      background: #fff;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      gap: 10px;
+    }
+
+    #input-bar input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    #input-bar input:focus { border-color: #1a1a2e; }
+
+    #input-bar button {
+      padding: 10px 20px;
+      background: #e94560;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    #input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .typing {
+      align-self: flex-start;
+      color: #999;
+      font-size: 13px;
+      padding: 8px 0;
+    }
+
+    .examples {
+      color: #888;
+      font-size: 13px;
+      align-self: center;
+      text-align: center;
+      margin-top: 40px;
+    }
+
+    .examples p { margin-bottom: 6px; }
+
+    .examples button {
+      display: block;
+      margin: 4px auto;
+      border: 1px solid #ddd;
+      background: #fff;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #555;
+    }
+
+    .examples button:hover { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <header>Wanderon <span>AI Assistant</span></header>
+
+  <div id="chat">
+    <div class="examples" id="examples">
+      <p>Try asking something:</p>
+      <button onclick="fill('What destinations does Wanderon offer in northeast India?')">Trip info (RAG)</button>
+      <button onclick="fill('How much does the premium plan cost?')">Pricing (Tool call)</button>
+      <button onclick="fill('What is the status of booking WDR-1002?')">Booking status (Tool call)</button>
+      <button onclick="fill('What is the cancellation policy for Ladakh?')">Trip policy (Tool call)</button>
+      <button onclick="fill('Hello!')">Small talk</button>
+      <button onclick="fill('What stocks should I invest in?')">Out of scope</button>
+    </div>
+  </div>
+
+  <div id="input-bar">
+    <input type="text" id="input" placeholder="Ask about Wanderon trips, pricing, policies..." autocomplete="off" />
+    <button id="send" onclick="send()">Send</button>
+  </div>
+
+  <script>
+    const chatEl = document.getElementById('chat');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !sendBtn.disabled) send();
+    });
+
+    function fill(text) {
+      inputEl.value = text;
+      inputEl.focus();
+    }
+
+    async function send() {
+      const query = inputEl.value.trim();
+      if (!query) return;
+
+      // hide examples on first message
+      const ex = document.getElementById('examples');
+      if (ex) ex.remove();
+
+      // show user message
+      addMsg('user', query);
+      inputEl.value = '';
+      sendBtn.disabled = true;
+
+      // typing indicator
+      const typing = document.createElement('div');
+      typing.className = 'typing';
+      typing.textContent = 'Thinking...';
+      chatEl.appendChild(typing);
+      chatEl.scrollTop = chatEl.scrollHeight;
+
+      try {
+        const res = await fetch('/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const data = await res.json();
+        typing.remove();
+        addBotMsg(data);
+      } catch (err) {
+        typing.remove();
+        addMsg('bot', 'Something went wrong. Is the server running?');
+      }
+
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+
+    function addMsg(type, text) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + type;
+      div.textContent = text;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function addBotMsg(data) {
+      const div = document.createElement('div');
+      div.className = 'msg bot';
+
+      // answer
+      const answer = document.createElement('div');
+      answer.className = 'answer';
+      answer.textContent = data.answer || data.error || 'No response';
+      div.appendChild(answer);
+
+      // meta tags
+      if (data.route || data.confidence !== undefined) {
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+
+        if (data.route) {
+          const t = document.createElement('span');
+          t.className = 'tag route';
+          t.textContent = data.route;
+          meta.appendChild(t);
+        }
+
+        if (data.confidence !== undefined) {
+          const t = document.createElement('span');
+          t.className = 'tag confidence';
+          t.textContent = 'confidence: ' + (data.confidence * 100).toFixed(1) + '%';
+          meta.appendChild(t);
+        }
+
+        if (data.tool_used) {
+          const t = document.createElement('span');
+          t.className = 'tag tool';
+          t.textContent = data.tool_used;
+          meta.appendChild(t);
+        }
+
+        if (data.trace && data.trace.groundedness) {
+          const t = document.createElement('span');
+          t.className = 'tag grounded' + (data.trace.groundedness.grounded ? ' yes' : '');
+          t.textContent = data.trace.groundedness.grounded ? 'grounded' : 'ungrounded';
+          meta.appendChild(t);
+        }
+
+        div.appendChild(meta);
+      }
+
+      // trace toggle
+      if (data.trace) {
+        const btn = document.createElement('button');
+        btn.className = 'trace-toggle';
+        btn.textContent = 'show trace';
+        const traceDiv = document.createElement('div');
+        traceDiv.className = 'trace';
+        traceDiv.textContent = JSON.stringify(data.trace, null, 2);
+
+        btn.onclick = () => {
+          traceDiv.classList.toggle('open');
+          btn.textContent = traceDiv.classList.contains('open') ? 'hide trace' : 'show trace';
+        };
+
+        div.appendChild(btn);
+        div.appendChild(traceDiv);
+      }
+
+      // feedback buttons
+      if (data.request_id) {
+        const fb = document.createElement('div');
+        fb.className = 'feedback';
+
+        const up = document.createElement('button');
+        up.textContent = '\uD83D\uDC4D';
+        up.onclick = () => sendFeedback(data.request_id, 'positive', fb);
+
+        const down = document.createElement('button');
+        down.textContent = '\uD83D\uDC4E';
+        down.onclick = () => sendFeedback(data.request_id, 'negative', fb);
+
+        fb.appendChild(up);
+        fb.appendChild(down);
+        div.appendChild(fb);
+      }
+
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    async function sendFeedback(requestId, rating, container) {
+      try {
+        await fetch('/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: requestId, rating }),
+        });
+        container.querySelectorAll('button').forEach(b => b.classList.remove('picked'));
+        const picked = rating === 'positive' ? container.children[0] : container.children[1];
+        picked.classList.add('picked');
+      } catch {}
+    }
+  </script>
+</body>
+</html>

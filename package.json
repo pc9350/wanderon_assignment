@@ -1,0 +1,20 @@
+{
+  "name": "wanderon-ai-assistant",
+  "version": "1.0.0",
+  "description": "AI assistant with intelligent query routing for Wanderon travel company",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "ingest": "node scripts/ingest.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "openai": "^4.20.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
