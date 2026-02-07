@@ -9,133 +9,339 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f5f5f5;
+      background: #f0f2f5;
       height: 100vh;
       display: flex;
       flex-direction: column;
+      color: #1a1a2e;
     }
 
     header {
       background: #1a1a2e;
       color: #fff;
-      padding: 14px 24px;
-      font-size: 16px;
-      font-weight: 600;
+      padding: 0 24px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: space-between;
+      height: 54px;
+      flex-shrink: 0;
     }
 
-    header span { color: #e94560; }
+    .brand { font-size: 16px; font-weight: 600; }
+    .brand span { color: #e94560; }
 
-    #chat {
-      flex: 1;
+    .tabs { display: flex; gap: 4px; }
+
+    .tabs button {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      padding: 7px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    .tabs button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .tabs button.active { color: #fff; background: rgba(255,255,255,0.14); }
+
+    /* tab panels */
+    .content { flex: 1; overflow: hidden; position: relative; }
+
+    .panel {
+      position: absolute;
+      inset: 0;
       overflow-y: auto;
       padding: 20px 24px;
-      display: flex;
+      display: none;
       flex-direction: column;
-      gap: 16px;
     }
 
-    .msg {
-      max-width: 720px;
-      line-height: 1.5;
-    }
+    .panel.active { display: flex; }
 
-    .msg.user {
+    /* ---- chat ---- */
+    #chat { gap: 16px; }
+
+    .msg-user {
       align-self: flex-end;
       background: #1a1a2e;
       color: #fff;
       padding: 10px 16px;
       border-radius: 16px 16px 4px 16px;
+      max-width: 600px;
+      font-size: 14px;
+      line-height: 1.5;
     }
 
-    .msg.bot {
+    .msg-bot {
       align-self: flex-start;
-      background: #fff;
-      padding: 14px 18px;
-      border-radius: 16px 16px 16px 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      max-width: 780px;
+      width: 100%;
     }
 
-    .msg.bot .answer { margin-bottom: 10px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
 
-    .trace-toggle {
+    /* pipeline section */
+    .pipeline-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .pipeline-head {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #bbb;
+      margin-bottom: 8px;
+    }
+
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 14px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .stage.show { opacity: 1; transform: translateY(0); }
+
+    .stage-box {
+      padding: 5px 11px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1.5px solid;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stage-box.passed { border-color: #2ecc71; background: #eafaf1; color: #1e8e3e; }
+    .stage-box.active { border-color: #3498db; background: #ebf5fb; color: #1a73e8; }
+    .stage-box.failed { border-color: #e94560; background: #fdecea; color: #c5221f; }
+    .stage-box.warning { border-color: #f39c12; background: #fef9e7; color: #b06000; }
+
+    .stage-sub {
+      font-size: 10px;
+      color: #999;
+      margin-top: 2px;
+      max-width: 110px;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .arrow {
+      margin: 0 5px;
+      color: #ccc;
+      font-size: 14px;
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .arrow.show { opacity: 1; }
+
+    /* answer */
+    .answer-text {
+      font-size: 14px;
+      line-height: 1.65;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    /* confidence bar */
+    .conf-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .route-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      background: #e8f4fd;
+      color: #1a73e8;
+    }
+
+    .conf-bar {
+      width: 180px;
+      height: 6px;
+      background: #eee;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .conf-fill {
+      height: 100%;
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.6s ease;
+    }
+
+    .conf-label {
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 42px;
+    }
+
+    /* expandable sections */
+    details.expand { margin-top: 6px; }
+
+    details.expand summary {
       font-size: 12px;
       color: #e94560;
       cursor: pointer;
-      border: none;
-      background: none;
-      padding: 0;
-      text-decoration: underline;
+      list-style: none;
+      user-select: none;
     }
 
-    .trace {
-      display: none;
-      margin-top: 8px;
+    details.expand summary::-webkit-details-marker { display: none; }
+    details.expand summary::before { content: '\25B6  '; font-size: 9px; }
+    details.expand[open] summary::before { content: '\25BC  '; }
+
+    .detail-body {
+      margin-top: 6px;
       padding: 10px;
-      background: #f8f8f8;
+      background: #f8f9fa;
       border-radius: 8px;
       font-size: 12px;
-      font-family: 'Consolas', monospace;
+    }
+
+    /* chunk cards */
+    .chunk {
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 5px;
+    }
+
+    .chunk-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .chunk-head .src { color: #3498db; }
+    .chunk-head .sc { color: #999; }
+    .chunk-body { font-size: 12px; color: #666; line-height: 1.4; }
+
+    /* tool / trace data */
+    .mono {
+      font-family: Consolas, Monaco, monospace;
+      font-size: 12px;
       white-space: pre-wrap;
       word-break: break-word;
-      color: #333;
+      color: #444;
     }
 
-    .trace.open { display: block; }
+    /* feedback */
+    .fb-row { display: flex; gap: 6px; margin-top: 10px; }
 
-    .meta {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
-
-    .tag {
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-weight: 500;
-    }
-
-    .tag.route { background: #e8f4fd; color: #1a73e8; }
-    .tag.confidence { background: #e6f4ea; color: #1e8e3e; }
-    .tag.tool { background: #fef7e0; color: #b06000; }
-    .tag.grounded { background: #fce8e6; color: #c5221f; }
-    .tag.grounded.yes { background: #e6f4ea; color: #1e8e3e; }
-
-    .feedback {
-      display: flex;
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .feedback button {
-      border: 1px solid #ddd;
+    .fb-row button {
+      border: 1px solid #e0e0e0;
       background: #fff;
       border-radius: 6px;
-      padding: 4px 10px;
+      padding: 4px 12px;
       cursor: pointer;
       font-size: 14px;
     }
 
-    .feedback button:hover { background: #f0f0f0; }
-    .feedback button.picked { border-color: #1a73e8; background: #e8f4fd; }
+    .fb-row button:hover { background: #f5f5f5; }
+    .fb-row button.picked { border-color: #3498db; background: #ebf5fb; }
 
-    #input-bar {
-      padding: 16px 24px;
+    .timing { font-size: 11px; color: #bbb; margin-top: 6px; }
+
+    /* typing */
+    .typing {
+      align-self: flex-start;
+      font-size: 13px;
+      color: #999;
+      padding: 8px 0;
+    }
+
+    .dot-pulse::after {
+      content: '';
+      animation: dots 1.4s infinite step-end;
+    }
+
+    @keyframes dots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+
+    /* examples */
+    .examples {
+      align-self: center;
+      text-align: center;
+      margin-top: 50px;
+      color: #999;
+    }
+
+    .examples p { font-size: 14px; margin-bottom: 14px; }
+
+    .ex-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      max-width: 580px;
+    }
+
+    .ex-grid button {
+      border: 1px solid #ddd;
       background: #fff;
-      border-top: 1px solid #e0e0e0;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .ex-grid button:hover { border-color: #1a1a2e; color: #1a1a2e; }
+
+    /* input bar */
+    #input-bar {
+      padding: 14px 24px;
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
       display: flex;
       gap: 10px;
+      flex-shrink: 0;
     }
 
     #input-bar input {
       flex: 1;
-      padding: 10px 14px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
+      padding: 10px 16px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
       font-size: 14px;
       outline: none;
     }
@@ -143,11 +349,11 @@
     #input-bar input:focus { border-color: #1a1a2e; }
 
     #input-bar button {
-      padding: 10px 20px;
+      padding: 10px 22px;
       background: #e94560;
       color: #fff;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 14px;
       cursor: pointer;
       font-weight: 500;
@@ -155,216 +361,531 @@
 
     #input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    .typing {
-      align-self: flex-start;
-      color: #999;
-      font-size: 13px;
-      padding: 8px 0;
+    /* ---- logs panel ---- */
+    .logs-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
     }
 
-    .examples {
-      color: #888;
-      font-size: 13px;
-      align-self: center;
-      text-align: center;
-      margin-top: 40px;
-    }
-
-    .examples p { margin-bottom: 6px; }
-
-    .examples button {
-      display: block;
-      margin: 4px auto;
+    .btn-sm {
       border: 1px solid #ddd;
       background: #fff;
       padding: 6px 14px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 13px;
-      color: #555;
     }
 
-    .examples button:hover { background: #f0f0f0; }
+    .btn-sm:hover { background: #f5f5f5; }
+
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .log-table th {
+      text-align: left;
+      padding: 9px 12px;
+      border-bottom: 2px solid #e5e7eb;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+    }
+
+    .log-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .log-table tr:hover td { background: #f8f9fa; }
+
+    .empty-state {
+      text-align: center;
+      color: #aaa;
+      padding: 40px;
+      font-size: 14px;
+    }
+
+    /* ---- stats panel ---- */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      max-width: 680px;
+    }
+
+    .stat-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      text-align: center;
+    }
+
+    .stat-card .num { font-size: 36px; font-weight: 700; color: #1a1a2e; }
+    .stat-card .lbl { font-size: 13px; color: #999; margin-top: 4px; }
+    .stat-card.pos .num { color: #2ecc71; }
+    .stat-card.neg .num { color: #e94560; }
   </style>
 </head>
 <body>
-  <header>Wanderon <span>AI Assistant</span></header>
 
-  <div id="chat">
-    <div class="examples" id="examples">
-      <p>Try asking something:</p>
-      <button onclick="fill('What destinations does Wanderon offer in northeast India?')">Trip info (RAG)</button>
-      <button onclick="fill('How much does the premium plan cost?')">Pricing (Tool call)</button>
-      <button onclick="fill('What is the status of booking WDR-1002?')">Booking status (Tool call)</button>
-      <button onclick="fill('What is the cancellation policy for Ladakh?')">Trip policy (Tool call)</button>
-      <button onclick="fill('Hello!')">Small talk</button>
-      <button onclick="fill('What stocks should I invest in?')">Out of scope</button>
+  <header>
+    <div class="brand">Wanderon <span>AI Assistant</span></div>
+    <div class="tabs">
+      <button class="active" data-tab="chat">Chat</button>
+      <button data-tab="logs">Logs</button>
+      <button data-tab="stats">Stats</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <div id="chat" class="panel active">
+      <div class="examples" id="examples">
+        <p>Try a query to see the routing pipeline in action</p>
+        <div class="ex-grid">
+          <button onclick="fill('What destinations does Wanderon offer in northeast India?')">Trip info (RAG)</button>
+          <button onclick="fill('How much does the premium plan cost?')">Pricing (Tool)</button>
+          <button onclick="fill('What is the status of booking WDR-1002?')">Booking status (Tool)</button>
+          <button onclick="fill('What is the cancellation policy for Ladakh?')">Trip policy (Tool)</button>
+          <button onclick="fill('Tell me about solo travel with Wanderon')">Solo travel (RAG)</button>
+          <button onclick="fill('Hello!')">Small talk</button>
+          <button onclick="fill('What stocks should I invest in?')">Out of scope</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="logs" class="panel">
+      <div class="logs-toolbar">
+        <button class="btn-sm" onclick="loadLogs()">Refresh</button>
+      </div>
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Query</th>
+            <th>Route</th>
+            <th>Method</th>
+            <th>Confidence</th>
+            <th>ms</th>
+          </tr>
+        </thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
+
+    <div id="stats" class="panel">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="num" id="s-total">-</div>
+          <div class="lbl">Total Feedback</div>
+        </div>
+        <div class="stat-card pos">
+          <div class="num" id="s-pos">-</div>
+          <div class="lbl">Positive</div>
+        </div>
+        <div class="stat-card neg">
+          <div class="num" id="s-neg">-</div>
+          <div class="lbl">Negative</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" id="s-rate">-</div>
+          <div class="lbl">Satisfaction</div>
+        </div>
+      </div>
     </div>
   </div>
 
   <div id="input-bar">
-    <input type="text" id="input" placeholder="Ask about Wanderon trips, pricing, policies..." autocomplete="off" />
-    <button id="send" onclick="send()">Send</button>
+    <input type="text" id="qinput" placeholder="Ask about Wanderon trips, pricing, policies..." autocomplete="off" />
+    <button id="sendbtn" onclick="send()">Send</button>
   </div>
 
-  <script>
-    const chatEl = document.getElementById('chat');
-    const inputEl = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
+<script>
+  var chatEl = document.getElementById('chat');
+  var inputEl = document.getElementById('qinput');
+  var sendBtn = document.getElementById('sendbtn');
 
-    inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !sendBtn.disabled) send();
+  inputEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !sendBtn.disabled) send();
+  });
+
+  function fill(t) { inputEl.value = t; inputEl.focus(); }
+
+  // tabs
+  document.querySelectorAll('.tabs button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var tab = btn.getAttribute('data-tab');
+      document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+      document.querySelectorAll('.tabs button').forEach(function(b) { b.classList.remove('active'); });
+      document.getElementById(tab).classList.add('active');
+      btn.classList.add('active');
+      if (tab === 'logs') loadLogs();
+      if (tab === 'stats') loadStats();
+    });
+  });
+
+  // send query
+  async function send() {
+    var query = inputEl.value.trim();
+    if (!query) return;
+
+    var ex = document.getElementById('examples');
+    if (ex) ex.remove();
+
+    // user bubble
+    var uDiv = document.createElement('div');
+    uDiv.className = 'msg-user';
+    uDiv.textContent = query;
+    chatEl.appendChild(uDiv);
+
+    inputEl.value = '';
+    sendBtn.disabled = true;
+
+    // typing
+    var tip = document.createElement('div');
+    tip.className = 'typing';
+    tip.innerHTML = 'Processing<span class="dot-pulse"></span>';
+    chatEl.appendChild(tip);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    try {
+      var res = await fetch('/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query }),
+      });
+      var data = await res.json();
+      tip.remove();
+      renderResponse(data);
+    } catch (err) {
+      tip.remove();
+      var errCard = document.createElement('div');
+      errCard.className = 'msg-bot';
+      errCard.innerHTML = '<div class="card"><div class="answer-text">Something went wrong. Is the server running?</div></div>';
+      chatEl.appendChild(errCard);
+    }
+
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+
+  // figure out pipeline stages from response data
+  function buildStages(data) {
+    var stages = [];
+    var trace = data.trace || {};
+    var guardrails = trace.guardrails || [];
+
+    // 1. guardrails
+    var blocked = guardrails.find(function(g) {
+      return g.type === 'hard_refusal' || g.type === 'token_budget';
+    });
+    stages.push({
+      label: 'Guardrails',
+      cls: blocked ? 'failed' : 'passed',
+      icon: blocked ? '\u2717' : '\u2713',
+      sub: blocked ? blocked.reason : 'Passed',
     });
 
-    function fill(text) {
-      inputEl.value = text;
-      inputEl.focus();
+    // 2. router
+    if (trace.router) {
+      stages.push({
+        label: trace.router.route.replace(/_/g, ' '),
+        cls: 'active',
+        icon: '\u2192',
+        sub: trace.router.method === 'rule' ? 'Rule match' : 'LLM classified',
+      });
     }
 
-    async function send() {
-      const query = inputEl.value.trim();
-      if (!query) return;
-
-      // hide examples on first message
-      const ex = document.getElementById('examples');
-      if (ex) ex.remove();
-
-      // show user message
-      addMsg('user', query);
-      inputEl.value = '';
-      sendBtn.disabled = true;
-
-      // typing indicator
-      const typing = document.createElement('div');
-      typing.className = 'typing';
-      typing.textContent = 'Thinking...';
-      chatEl.appendChild(typing);
-      chatEl.scrollTop = chatEl.scrollHeight;
-
-      try {
-        const res = await fetch('/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query }),
+    // 3. handler — depends on route
+    var route = data.route;
+    if (route === 'FACT_FROM_DOCS') {
+      var chunks = trace.chunks_retrieved || [];
+      stages.push({
+        label: 'RAG',
+        cls: chunks.length > 0 ? 'active' : 'failed',
+        icon: '\u2261',
+        sub: chunks.length + ' chunk' + (chunks.length !== 1 ? 's' : '') + ' retrieved',
+      });
+      if (trace.groundedness) {
+        stages.push({
+          label: 'Grounded',
+          cls: trace.groundedness.grounded ? 'passed' : 'failed',
+          icon: trace.groundedness.grounded ? '\u2713' : '\u2717',
+          sub: trace.groundedness.grounded ? 'Verified' : 'Unverified',
         });
-        const data = await res.json();
-        typing.remove();
-        addBotMsg(data);
-      } catch (err) {
-        typing.remove();
-        addMsg('bot', 'Something went wrong. Is the server running?');
       }
-
-      sendBtn.disabled = false;
-      inputEl.focus();
+    } else if (route === 'STRUCTURED_DATA') {
+      stages.push({
+        label: data.tool_used || 'Tool',
+        cls: data.tool_used ? 'active' : 'failed',
+        icon: '\u2699',
+        sub: data.tool_used ? 'Executed' : 'No match',
+      });
+    } else if (route === 'SMALL_TALK') {
+      stages.push({
+        label: 'Direct LLM',
+        cls: 'active',
+        icon: '\u2194',
+        sub: 'Generated',
+      });
+    } else {
+      stages.push({
+        label: 'Refused',
+        cls: 'failed',
+        icon: '\u2717',
+        sub: 'Out of scope',
+      });
     }
 
-    function addMsg(type, text) {
-      const div = document.createElement('div');
-      div.className = 'msg ' + type;
-      div.textContent = text;
-      chatEl.appendChild(div);
-      chatEl.scrollTop = chatEl.scrollHeight;
-    }
+    // 4. output validation
+    var outIssue = guardrails.find(function(g) { return g.type === 'output_validation'; });
+    stages.push({
+      label: 'Output',
+      cls: outIssue ? 'warning' : 'passed',
+      icon: outIssue ? '!' : '\u2713',
+      sub: outIssue ? 'Patched' : 'Valid',
+    });
 
-    function addBotMsg(data) {
-      const div = document.createElement('div');
-      div.className = 'msg bot';
+    return stages;
+  }
 
-      // answer
-      const answer = document.createElement('div');
-      answer.className = 'answer';
-      answer.textContent = data.answer || data.error || 'No response';
-      div.appendChild(answer);
+  function renderPipeline(stages, parent) {
+    var pipe = document.createElement('div');
+    pipe.className = 'pipeline';
 
-      // meta tags
-      if (data.route || data.confidence !== undefined) {
-        const meta = document.createElement('div');
-        meta.className = 'meta';
-
-        if (data.route) {
-          const t = document.createElement('span');
-          t.className = 'tag route';
-          t.textContent = data.route;
-          meta.appendChild(t);
-        }
-
-        if (data.confidence !== undefined) {
-          const t = document.createElement('span');
-          t.className = 'tag confidence';
-          t.textContent = 'confidence: ' + (data.confidence * 100).toFixed(1) + '%';
-          meta.appendChild(t);
-        }
-
-        if (data.tool_used) {
-          const t = document.createElement('span');
-          t.className = 'tag tool';
-          t.textContent = data.tool_used;
-          meta.appendChild(t);
-        }
-
-        if (data.trace && data.trace.groundedness) {
-          const t = document.createElement('span');
-          t.className = 'tag grounded' + (data.trace.groundedness.grounded ? ' yes' : '');
-          t.textContent = data.trace.groundedness.grounded ? 'grounded' : 'ungrounded';
-          meta.appendChild(t);
-        }
-
-        div.appendChild(meta);
+    stages.forEach(function(s, i) {
+      // arrow between stages
+      if (i > 0) {
+        var arr = document.createElement('span');
+        arr.className = 'arrow';
+        arr.textContent = '\u2192';
+        pipe.appendChild(arr);
+        setTimeout(function() { arr.classList.add('show'); }, i * 160);
       }
 
-      // trace toggle
-      if (data.trace) {
-        const btn = document.createElement('button');
-        btn.className = 'trace-toggle';
-        btn.textContent = 'show trace';
-        const traceDiv = document.createElement('div');
-        traceDiv.className = 'trace';
-        traceDiv.textContent = JSON.stringify(data.trace, null, 2);
+      var el = document.createElement('div');
+      el.className = 'stage';
 
-        btn.onclick = () => {
-          traceDiv.classList.toggle('open');
-          btn.textContent = traceDiv.classList.contains('open') ? 'hide trace' : 'show trace';
-        };
+      var box = document.createElement('div');
+      box.className = 'stage-box ' + s.cls;
+      box.textContent = s.icon + ' ' + s.label;
 
-        div.appendChild(btn);
-        div.appendChild(traceDiv);
-      }
+      var sub = document.createElement('div');
+      sub.className = 'stage-sub';
+      sub.textContent = s.sub;
 
-      // feedback buttons
-      if (data.request_id) {
-        const fb = document.createElement('div');
-        fb.className = 'feedback';
+      el.appendChild(box);
+      el.appendChild(sub);
+      pipe.appendChild(el);
 
-        const up = document.createElement('button');
-        up.textContent = '\uD83D\uDC4D';
-        up.onclick = () => sendFeedback(data.request_id, 'positive', fb);
+      setTimeout(function() { el.classList.add('show'); }, i * 160 + 60);
+    });
 
-        const down = document.createElement('button');
-        down.textContent = '\uD83D\uDC4E';
-        down.onclick = () => sendFeedback(data.request_id, 'negative', fb);
+    parent.appendChild(pipe);
+  }
 
-        fb.appendChild(up);
-        fb.appendChild(down);
-        div.appendChild(fb);
-      }
+  function confColor(v) {
+    if (v >= 0.7) return '#2ecc71';
+    if (v >= 0.4) return '#f39c12';
+    return '#e94560';
+  }
 
-      chatEl.appendChild(div);
-      chatEl.scrollTop = chatEl.scrollHeight;
+  // main render
+  function renderResponse(data) {
+    var wrap = document.createElement('div');
+    wrap.className = 'msg-bot';
+    var card = document.createElement('div');
+    card.className = 'card';
+
+    // answer first — this is what the user cares about
+    var ans = document.createElement('div');
+    ans.className = 'answer-text';
+    ans.textContent = data.answer || data.error || 'No response';
+    card.appendChild(ans);
+
+    // confidence row right under the answer
+    if (data.confidence !== undefined) {
+      var row = document.createElement('div');
+      row.className = 'conf-row';
+
+      var badge = document.createElement('span');
+      badge.className = 'route-badge';
+      badge.textContent = data.route;
+      row.appendChild(badge);
+
+      var bar = document.createElement('div');
+      bar.className = 'conf-bar';
+      var fill = document.createElement('div');
+      fill.className = 'conf-fill';
+      fill.style.background = confColor(data.confidence);
+      bar.appendChild(fill);
+      row.appendChild(bar);
+
+      var lbl = document.createElement('span');
+      lbl.className = 'conf-label';
+      lbl.style.color = confColor(data.confidence);
+      lbl.textContent = (data.confidence * 100).toFixed(1) + '%';
+      row.appendChild(lbl);
+
+      card.appendChild(row);
+      setTimeout(function() { fill.style.width = (data.confidence * 100) + '%'; }, 120);
     }
 
-    async function sendFeedback(requestId, rating, container) {
-      try {
-        await fetch('/feedback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ request_id: requestId, rating }),
-        });
-        container.querySelectorAll('button').forEach(b => b.classList.remove('picked'));
-        const picked = rating === 'positive' ? container.children[0] : container.children[1];
-        picked.classList.add('picked');
-      } catch {}
+    // pipeline section — separated from the answer with its own heading
+    var pipeSection = document.createElement('div');
+    pipeSection.className = 'pipeline-section';
+    var pipeHead = document.createElement('div');
+    pipeHead.className = 'pipeline-head';
+    pipeHead.textContent = 'Decision Pipeline';
+    pipeSection.appendChild(pipeHead);
+    var stages = buildStages(data);
+    renderPipeline(stages, pipeSection);
+    card.appendChild(pipeSection);
+
+    // expandable: chunks
+    if (data.trace && data.trace.chunks_retrieved && data.trace.chunks_retrieved.length > 0) {
+      var det = document.createElement('details');
+      det.className = 'expand';
+      det.innerHTML = '<summary>Retrieved Chunks (' + data.trace.chunks_retrieved.length + ')</summary>';
+      var body = document.createElement('div');
+      body.className = 'detail-body';
+
+      data.trace.chunks_retrieved.forEach(function(c) {
+        var ch = document.createElement('div');
+        ch.className = 'chunk';
+        ch.innerHTML =
+          '<div class="chunk-head"><span class="src">' + c.source + '</span><span class="sc">score: ' + c.score + '</span></div>' +
+          '<div class="chunk-body">' + c.preview + '...</div>';
+        body.appendChild(ch);
+      });
+
+      det.appendChild(body);
+      card.appendChild(det);
     }
-  </script>
+
+    // expandable: tool result
+    if (data.tool_used && data.raw_data) {
+      var det2 = document.createElement('details');
+      det2.className = 'expand';
+      det2.innerHTML = '<summary>Tool Result: ' + data.tool_used + '</summary>';
+      var body2 = document.createElement('div');
+      body2.className = 'detail-body mono';
+      body2.textContent = JSON.stringify(data.raw_data, null, 2);
+      det2.appendChild(body2);
+      card.appendChild(det2);
+    }
+
+    // expandable: router reasoning
+    if (data.trace && data.trace.router && data.trace.router.reasoning) {
+      var det3 = document.createElement('details');
+      det3.className = 'expand';
+      det3.innerHTML = '<summary>Router Reasoning</summary>';
+      var body3 = document.createElement('div');
+      body3.className = 'detail-body';
+      body3.textContent = data.trace.router.reasoning +
+        (data.trace.router.method ? ' (method: ' + data.trace.router.method + ')' : '');
+      det3.appendChild(body3);
+      card.appendChild(det3);
+    }
+
+    // expandable: full trace
+    if (data.trace) {
+      var det4 = document.createElement('details');
+      det4.className = 'expand';
+      det4.innerHTML = '<summary>Full Trace (JSON)</summary>';
+      var body4 = document.createElement('div');
+      body4.className = 'detail-body mono';
+      body4.textContent = JSON.stringify(data.trace, null, 2);
+      det4.appendChild(body4);
+      card.appendChild(det4);
+    }
+
+    // feedback
+    if (data.request_id) {
+      var fb = document.createElement('div');
+      fb.className = 'fb-row';
+      var up = document.createElement('button');
+      up.textContent = '\uD83D\uDC4D';
+      up.onclick = function() { doFeedback(data.request_id, 'positive', fb); };
+      var dn = document.createElement('button');
+      dn.textContent = '\uD83D\uDC4E';
+      dn.onclick = function() { doFeedback(data.request_id, 'negative', fb); };
+      fb.appendChild(up);
+      fb.appendChild(dn);
+      card.appendChild(fb);
+    }
+
+    wrap.appendChild(card);
+    chatEl.appendChild(wrap);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  // feedback
+  async function doFeedback(id, rating, container) {
+    try {
+      await fetch('/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: id, rating: rating }),
+      });
+      container.querySelectorAll('button').forEach(function(b) { b.classList.remove('picked'); });
+      var btn = rating === 'positive' ? container.children[0] : container.children[1];
+      btn.classList.add('picked');
+    } catch (e) {}
+  }
+
+  // logs
+  async function loadLogs() {
+    var tbody = document.getElementById('log-body');
+    try {
+      var res = await fetch('/logs?count=30');
+      var logs = await res.json();
+      tbody.innerHTML = '';
+
+      if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No logs yet. Send some queries first.</td></tr>';
+        return;
+      }
+
+      logs.forEach(function(log) {
+        var tr = document.createElement('tr');
+        var time = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '-';
+        var q = (log.query || '').substring(0, 45);
+        if ((log.query || '').length > 45) q += '...';
+        var conf = log.confidence !== null && log.confidence !== undefined
+          ? (log.confidence * 100).toFixed(1) + '%' : '-';
+
+        tr.innerHTML =
+          '<td>' + time + '</td>' +
+          '<td title="' + (log.query || '').replace(/"/g, '&quot;') + '">' + q + '</td>' +
+          '<td><span class="route-badge">' + (log.route || '-') + '</span></td>' +
+          '<td>' + (log.route_method || '-') + '</td>' +
+          '<td>' + conf + '</td>' +
+          '<td>' + (log.response_time_ms || '-') + '</td>';
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Could not load logs</td></tr>';
+    }
+  }
+
+  // stats
+  async function loadStats() {
+    try {
+      var res = await fetch('/feedback/stats');
+      var s = await res.json();
+      document.getElementById('s-total').textContent = s.total;
+      document.getElementById('s-pos').textContent = s.positive;
+      document.getElementById('s-neg').textContent = s.negative;
+      document.getElementById('s-rate').textContent = s.satisfaction_rate;
+    } catch (e) {}
+  }
+</script>
 </body>
 </html>
