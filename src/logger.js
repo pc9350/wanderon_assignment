@@ -12,6 +12,7 @@ function createRequestLog(requestId) {
     request_id: requestId,
     timestamp: new Date().toISOString(),
     query: null,
+    conversation_id: null,
     route: null,
     route_method: null,
     route_reasoning: null,

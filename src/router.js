@@ -62,27 +62,42 @@ Classify the user query into exactly one route:
 
 - FACT_FROM_DOCS: Questions about Wanderon trips, destinations, itineraries, travel tips, company info, or general travel knowledge answerable from documentation.
 - STRUCTURED_DATA: Requests for specific data like pricing for a plan, trip policies for a destination, or booking/lead status. These come from an API or database.
-- SMALL_TALK: Greetings, casual chat, thank-yous, non-substantive messages.
-- OUT_OF_SCOPE: Topics unrelated to travel, tourism, or Wanderon services.
+- SMALL_TALK: Greetings, casual chat, thank-yous, non-substantive messages, or conversational follow-ups (e.g. referencing something said earlier).
+- OUT_OF_SCOPE: Topics clearly unrelated to travel, tourism, or Wanderon services AND not part of an ongoing conversation.
 
 Guidelines:
 - Travel info questions without asking for a specific data point → FACT_FROM_DOCS
 - Asking for a price, policy detail, or booking status → STRUCTURED_DATA
 - When ambiguous between FACT_FROM_DOCS and STRUCTURED_DATA, lean FACT_FROM_DOCS
+- If conversation history is provided and the query is a follow-up to that conversation, classify based on context — do NOT mark conversational follow-ups as OUT_OF_SCOPE
 
 Return JSON only: {"route": "<ROUTE>", "reasoning": "<one line>"}`;
 
-async function classifyQuery(query) {
+async function classifyQuery(query, conversationHistory = []) {
   // try rules first
   const ruleResult = ruleBasedCheck(query);
   if (ruleResult) return ruleResult;
 
+  // build messages for LLM router
+  const messages = [
+    { role: 'system', content: ROUTER_SYSTEM_PROMPT },
+  ];
+
+  // If there's conversation history, include a summary so the router has context
+  if (conversationHistory.length > 0) {
+    const recentHistory = conversationHistory.slice(-6); // last 3 exchanges max
+    const summary = recentHistory.map(m => `${m.role}: ${m.content}`).join('\n');
+    messages.push({
+      role: 'user',
+      content: `Conversation so far:\n${summary}\n\nClassify this new query: "${query}"`,
+    });
+  } else {
+    messages.push({ role: 'user', content: query });
+  }
+
   // fall back to LLM
   const response = await chat(
-    [
-      { role: 'system', content: ROUTER_SYSTEM_PROMPT },
-      { role: 'user', content: query },
-    ],
+    messages,
     config.routerModel,
     { temperature: 0, maxTokens: 100, jsonMode: true }
   );

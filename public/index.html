@@ -30,7 +30,7 @@
     .brand { font-size: 16px; font-weight: 600; }
     .brand span { color: #e94560; }
 
-    .tabs { display: flex; gap: 4px; }
+    .tabs { display: flex; gap: 4px; margin-left: 24px; }
 
     .tabs button {
       background: transparent;
@@ -442,6 +442,7 @@
       <button data-tab="logs">Logs</button>
       <button data-tab="stats">Stats</button>
     </div>
+    <button onclick="resetConversation()" style="margin-left:auto;padding:7px 16px;background:#e94560;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">🔄 New Chat</button>
   </header>
 
   <div class="content">
@@ -510,6 +511,7 @@
   var chatEl = document.getElementById('chat');
   var inputEl = document.getElementById('qinput');
   var sendBtn = document.getElementById('sendbtn');
+  var currentConversationId = null;
 
   inputEl.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !sendBtn.disabled) send();
@@ -555,13 +557,24 @@
     chatEl.scrollTop = chatEl.scrollHeight;
 
     try {
+      var requestBody = { query: query };
+      if (currentConversationId) {
+        requestBody.conversationId = currentConversationId;
+      }
+
       var res = await fetch('/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query }),
+        body: JSON.stringify(requestBody),
       });
       var data = await res.json();
       tip.remove();
+
+      if (data.conversation_id) {
+        currentConversationId = data.conversation_id;
+        console.log('Conversation ID:', currentConversationId);
+      }
+
       renderResponse(data);
     } catch (err) {
       tip.remove();
@@ -885,6 +898,16 @@
       document.getElementById('s-neg').textContent = s.negative;
       document.getElementById('s-rate').textContent = s.satisfaction_rate;
     } catch (e) {}
+  }
+  function resetConversation() {
+    currentConversationId = null;
+    chatEl.innerHTML = '';
+    var exDiv = document.createElement('div');
+    exDiv.className = 'examples';
+    exDiv.id = 'examples';
+    exDiv.innerHTML = '<p>Try a query to see the routing pipeline in action</p><div class="ex-grid"><button onclick="fill(\'What destinations does Wanderon offer in northeast India?\')">Trip info (RAG)</button><button onclick="fill(\'How much does the premium plan cost?\')">Pricing (Tool)</button><button onclick="fill(\'What is the status of booking WDR-1002?\')">Booking status (Tool)</button><button onclick="fill(\'Hello!\')">Small talk</button><button onclick="fill(\'What stocks should I invest in?\')">Out of scope</button></div>';
+    chatEl.appendChild(exDiv);
+    console.log('Started new conversation');
   }
 </script>
 </body>

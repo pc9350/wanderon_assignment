@@ -70,11 +70,28 @@ Is the answer supported by the context? Respond with JSON:
   }
 }
 
-async function answerFromDocs(query) {
+async function answerFromDocs(query, conversationHistory = []) {
   const chunks = await retrieve(query);
 
   // confidence guardrail — if nothing relevant came back, don't hallucinate
   if (chunks.length === 0 || chunks[0].score < config.confidenceThreshold) {
+    // If there's conversation history, try answering from context instead of refusing
+    if (conversationHistory.length > 1) {
+      const fallbackAnswer = await chat([
+        {
+          role: 'system',
+          content: 'You are a helpful travel assistant for Wanderon. Answer the user based on the conversation so far. If you genuinely don\'t know, say so. Keep it concise.',
+        },
+        ...conversationHistory,
+      ]);
+      return {
+        answer: fallbackAnswer,
+        confidence: 0.6,
+        chunks: chunks.map(c => ({ text: c.text, source: c.source, score: c.score })),
+        grounded: false,
+        groundedness_detail: 'Answered from conversation context (docs not relevant)',
+      };
+    }
     return {
       answer: "I don't have enough relevant information to answer that accurately.",
       confidence: chunks[0]?.score || 0,
@@ -86,7 +103,8 @@ async function answerFromDocs(query) {
 
   const context = chunks.map(c => c.text).join('\n---\n');
 
-  const answer = await chat([
+  // Build messages: system prompt with context + conversation history (or just the query)
+  const messages = [
     {
       role: 'system',
       content: `You are a helpful travel assistant for Wanderon. Answer based ONLY on the provided context. If the context doesn't have enough info, say so honestly. Keep it concise.
@@ -94,8 +112,10 @@ async function answerFromDocs(query) {
 Context:
 ${context}`,
     },
-    { role: 'user', content: query },
-  ]);
+    ...(conversationHistory.length > 0 ? conversationHistory : [{ role: 'user', content: query }]),
+  ];
+
+  const answer = await chat(messages);
 
   // verify answer is actually grounded in the docs
   const groundedness = await checkGroundedness(query, answer, chunks);

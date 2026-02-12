@@ -9,6 +9,7 @@ const { checkRefusalRules, validateOutput, checkTokenBudget } = require('./guard
 const { createRequestLog, saveLog, getRecentLogs } = require('./logger');
 const { addFeedback, getStats } = require('./feedback');
 const { chat } = require('./llm');
+const { getOrCreateConversation, addMessage, getMessages } = require('./conversations');
 
 const app = express();
 app.use(express.json());
@@ -17,18 +18,27 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // ---- main query endpoint ----
 
 app.post('/query', async (req, res) => {
+  // Step 1: Setup 
   const start = Date.now();
   const requestId = uuidv4();
   const log = createRequestLog(requestId);
 
   try {
-    const { query } = req.body;
+    // Step 2: Input Validation
+    const { query, conversationId: incomingConvId } = req.body;
     if (!query || typeof query !== 'string') {
       return res.status(400).json({ error: 'Missing or invalid "query" field' });
     }
     log.query = query;
 
-    // --- input guardrails ---
+    // Conversation management: get existing or create new
+    const conversationId = getOrCreateConversation(incomingConvId);
+    log.conversation_id = conversationId;
+
+    // Store the user's message in conversation history
+    addMessage(conversationId, 'user', query);
+
+    // Step 3: Guardrails - Hard Refusal
     const refusal = checkRefusalRules(query);
     if (refusal.refused) {
       log.guardrails_triggered.push({ type: 'hard_refusal', reason: refusal.reason });
@@ -47,7 +57,9 @@ app.post('/query', async (req, res) => {
       });
     }
 
+    // Step 4: Guardrails - Token Budget
     const budget = checkTokenBudget(query);
+    // Check if query > 2000 characters
     if (budget.exceeded) {
       log.guardrails_triggered.push({ type: 'token_budget', reason: budget.reason });
       log.response_time_ms = Date.now() - start;
@@ -61,23 +73,26 @@ app.post('/query', async (req, res) => {
       });
     }
 
-    // --- route the query ---
-    const routeResult = await classifyQuery(query);
+
+
+    // Step 5: Route the query (with conversation context for better routing)
+    const history = getMessages(conversationId);
+    const routeResult = await classifyQuery(query, history);
     log.route = routeResult.route;
     log.route_method = routeResult.method;
     log.route_reasoning = routeResult.reasoning;
 
     let response;
-
+    // Step 6: Route the query
     switch (routeResult.route) {
       case 'FACT_FROM_DOCS':
-        response = await handleRAG(query, requestId, log);
+        response = await handleRAG(query, requestId, log, conversationId);
         break;
       case 'STRUCTURED_DATA':
-        response = await handleToolCall(query, requestId, log);
+        response = await handleToolCall(query, requestId, log, conversationId);
         break;
       case 'SMALL_TALK':
-        response = await handleSmallTalk(query, requestId, log);
+        response = await handleSmallTalk(query, requestId, log, conversationId);
         break;
       case 'OUT_OF_SCOPE':
       default:
@@ -85,7 +100,11 @@ app.post('/query', async (req, res) => {
         break;
     }
 
-    // --- output validation guardrail ---
+    // Store assistant response in conversation history
+    addMessage(conversationId, 'assistant', response.answer);
+    response.conversation_id = conversationId;
+
+    // Step 8: Output Validation Guardrail
     const validation = validateOutput(response);
     if (!validation.valid) {
       log.guardrails_triggered.push({ type: 'output_validation', errors: validation.errors });
@@ -97,7 +116,7 @@ app.post('/query', async (req, res) => {
       }
     }
 
-    // attach the full trace
+    // Step 9: Attach the full trace
     response.trace = {
       router: {
         route: routeResult.route,
@@ -112,10 +131,11 @@ app.post('/query', async (req, res) => {
         : null,
     };
 
-    // clean internal fields
+    // clean internal fields to avoid exposing implementation details in the final response
     delete response._grounded;
     delete response._groundedness_detail;
 
+    // Step 10: Log the response and return
     log.confidence = response.confidence;
     log.response_time_ms = Date.now() - start;
     saveLog(log);
@@ -132,8 +152,10 @@ app.post('/query', async (req, res) => {
 
 // ---- route handlers ----
 
-async function handleRAG(query, requestId, log) {
-  const result = await answerFromDocs(query);
+// Step 7: RAG Pipeline
+async function handleRAG(query, requestId, log, conversationId = null) {
+  const history = conversationId ? getMessages(conversationId) : [];
+  const result = await answerFromDocs(query, history);
 
   log.chunks_retrieved = (result.chunks || []).map(c => ({
     source: c.source,
@@ -156,7 +178,7 @@ async function handleRAG(query, requestId, log) {
   };
 }
 
-async function handleToolCall(query, requestId, log) {
+async function handleToolCall(query, requestId, log, conversationId = null) {
   const descriptions = getToolDescriptions();
 
   // ask LLM which tool to use and what args to pass
@@ -215,12 +237,18 @@ Respond with JSON: {"tool": "<name or null>", "arguments": {}, "reasoning": "<wh
     };
   }
 
-  // turn the raw data into a human-friendly answer
-  const formatted = await chat(
-    [{
+  // turn the raw data into a human-friendly answer (with conversation context)
+  const history = conversationId ? getMessages(conversationId) : [];
+  const formatMessages = [
+    ...history,
+    {
       role: 'user',
       content: `Format this data as a helpful response for a travel company customer. Be conversational and concise.\n\nTool: ${decision.tool}\nData: ${JSON.stringify(toolResult)}\nOriginal question: ${query}`,
-    }],
+    },
+  ];
+  // If no history, just use a single message
+  const formatted = await chat(
+    history.length > 0 ? formatMessages : [formatMessages[formatMessages.length - 1]],
     config.answerModel,
     { temperature: 0.3, maxTokens: 300 }
   );
@@ -235,18 +263,17 @@ Respond with JSON: {"tool": "<name or null>", "arguments": {}, "reasoning": "<wh
   };
 }
 
-async function handleSmallTalk(query, requestId, log) {
-  const answer = await chat(
-    [
-      {
-        role: 'system',
-        content: 'You are a friendly assistant for Wanderon, a travel company. Keep small talk responses warm but brief. If conversation steers toward travel, mention you can help with trip info, pricing, and policies.',
-      },
-      { role: 'user', content: query },
-    ],
-    config.answerModel,
-    { temperature: 0.7, maxTokens: 150 }
-  );
+async function handleSmallTalk(query, requestId, log, conversationId = null) {
+  const systemMsg = {
+    role: 'system',
+    content: 'You are a friendly assistant for Wanderon, a travel company. Keep small talk responses warm but brief. If conversation steers toward travel, mention you can help with trip info, pricing, and policies. Do not repeat greetings if you have already greeted the user in this conversation.',
+  };
+
+  // Build messages: system prompt + full conversation history
+  const history = conversationId ? getMessages(conversationId) : [{ role: 'user', content: query }];
+  const messages = [systemMsg, ...history];
+
+  const answer = await chat(messages, config.answerModel, { temperature: 0.7, maxTokens: 150 });
 
   return {
     request_id: requestId,

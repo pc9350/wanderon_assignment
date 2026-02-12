@@ -4,6 +4,25 @@ The idea here is simple — not every query needs a vector search. If someone sa
 
 It routes each query into one of four lanes: doc retrieval (RAG), a tool/API call, a direct conversational reply, or a flat-out refusal. Every response comes back with a confidence score and a reasoning trace so you can see exactly what happened under the hood.
 
+## Persistent Conversations
+
+The assistant maintains conversation context across multiple messages. When a user says "my name is Pranav" and later asks "what's my name?", it remembers.
+
+**How it works:** The backend stores message history per conversation in memory. Each response returns a `conversation_id`, and the frontend sends it back with the next message. Every handler — RAG, Tool calls, Small Talk — gets the full conversation history passed to `chat()`, so the LLM always has context.
+
+The router is also conversation-aware. Without this, a follow-up like "what's my name?" would get classified as `OUT_OF_SCOPE` because it's not travel-related in isolation. With conversation history, the router sees the full context and routes it correctly as a conversational follow-up.
+
+**Frontend:** There's a "New Chat" button in the header that resets `conversation_id` and starts a fresh conversation.
+
+## Cost & Performance
+
+A few deliberate choices to keep token usage and latency down:
+
+- **Two-layer router** — regex catches greetings, refusals, and structured data patterns without making an API call. The LLM router only fires on ambiguous queries.
+- **Single-pass RAG** — conversation history is passed directly into the RAG answer generation call, not as a separate re-generation step. One LLM call instead of two.
+- **Confidence threshold early-exit** — if the best retrieved chunk scores below 0.55, the system returns "I don't know" immediately without calling the LLM at all.
+- **Lazy initialization** — the OpenAI client and the embeddings store only load on first use, not on import.
+
 ## System Architecture
 
 ![System Architecture Diagram](./wanderon_assignment_system_diagram.png)
@@ -23,6 +42,8 @@ If none of the patterns match, it falls back to GPT-4o-mini to classify the quer
 - `SMALL_TALK` — just reply directly
 - `OUT_OF_SCOPE` — refuse politely
 
+When there's an active conversation, the router gets the last few messages as context. This prevents it from misrouting follow-up questions — "tell me more" or "what about the cost?" make sense when the router can see what came before.
+
 The reason for the two-layer thing is cost. A pure LLM router means you're paying for an API call on every single "thanks" and "bye". The regex layer handles those for free and the LLM only kicks in when the query is actually ambiguous.
 
 ## RAG Pipeline
@@ -32,7 +53,7 @@ When a query hits the `FACT_FROM_DOCS` route:
 1. Embed the query with `text-embedding-3-small`
 2. Run cosine similarity against pre-embedded doc chunks
 3. If the best chunk scores below 0.55, bail out early — return "insufficient info" instead of making something up
-4. Generate an answer using only the retrieved context
+4. Generate an answer using only the retrieved context (with conversation history if available)
 5. Run a groundedness check — a second LLM call that verifies the answer is actually backed by the chunks
 6. If it's not grounded, the response gets flagged and the confidence score takes a hit
 
@@ -69,7 +90,7 @@ These are all enforced in code, not through prompts:
 
 ## Logging
 
-Every request gets a structured log entry — route picked, method used (rule vs LLM), tools called, chunks retrieved with scores, guardrails that fired, response time. Stored as JSONL, one file per day, in `data/logs/`.
+Every request gets a structured log entry — route picked, method used (rule vs LLM), tools called, chunks retrieved with scores, guardrails that fired, conversation ID, response time. Stored as JSONL, one file per day, in `data/logs/`.
 
 You can pull recent logs from `GET /logs?count=20`.
 
@@ -104,6 +125,14 @@ Where this would go next: negative feedback on RAG answers could flag bad query-
 | Huge input                                      | Character limit kicks in before anything else runs   |
 | OpenAI API goes down                            | Try-catch, returns 500 with request ID for debugging |
 
+## Production Improvements
+
+Things I'd change before shipping this for real users:
+
+- **Conversation summarization** — right now the full message history is sent with every LLM call. After 20+ messages, that's expensive. In production, I'd summarize older messages into a condensed context block (e.g. "User is Pranav, interested in Ladakh, asked about premium plan") and keep only the last few messages verbatim. This keeps token costs flat while preserving all the context.
+- **Persistent storage** — conversations are in-memory, so they're lost on restart. Swapping the store for Redis or a database would take minimal changes since the interface (`getMessages`, `addMessage`) stays the same.
+- **User authentication** — tie conversations to user accounts so context carries across sessions and devices.
+
 ## Setup
 
 ```bash
@@ -123,25 +152,52 @@ npm start
 npm run dev
 ```
 
-Then open `http://localhost:3000` — there's a simple chat UI for testing.
+Then open `http://localhost:3000` — there's a chat UI with conversation support. Click "New Chat" to start a fresh conversation.
 
 ## Example Queries (or Use the HTML page to test.)
 
 ```bash
 # travel question → RAG
-curl.exe -X POST http://localhost:3000/query -H "Content-Type: application/json" -d "{\"query\": \"What destinations does Wanderon offer in northeast India?\"}"
+curl -X POST http://localhost:3000/query -H "Content-Type: application/json" \
+  -d '{"query": "What destinations does Wanderon offer in northeast India?"}'
 
 # pricing → tool call
-curl.exe -X POST http://localhost:3000/query -H "Content-Type: application/json" -d "{\"query\": \"How much does the premium plan cost?\"}"
+curl -X POST http://localhost:3000/query -H "Content-Type: application/json" \
+  -d '{"query": "How much does the premium plan cost?"}'
 
-# booking status → tool call
-curl.exe -X POST http://localhost:3000/query -H "Content-Type: application/json" -d "{\"query\": \"What is the status of booking WDR-1002?\"}"
+# greeting → direct LLM (starts a conversation)
+curl -X POST http://localhost:3000/query -H "Content-Type: application/json" \
+  -d '{"query": "Hello, my name is Pranav"}'
 
-# greeting → direct LLM
-curl.exe -X POST http://localhost:3000/query -H "Content-Type: application/json" -d "{\"query\": \"Hello!\"}"
+# follow-up with conversation context
+curl -X POST http://localhost:3000/query -H "Content-Type: application/json" \
+  -d '{"query": "what is my name?", "conversationId": "<id from previous response>"}'
 
 # out of scope → refusal
-curl.exe -X POST http://localhost:3000/query -H "Content-Type: application/json" -d "{\"query\": \"What stocks should I invest in?\"}"
+curl -X POST http://localhost:3000/query -H "Content-Type: application/json" \
+  -d '{"query": "What stocks should I invest in?"}'
+```
+
+## Project Structure
+
+```
+src/
+  index.js          — Express server, query endpoint, route handlers
+  router.js         — Hybrid regex + LLM query classifier (conversation-aware)
+  rag.js            — Retrieval + generation + groundedness checking
+  llm.js            — OpenAI client wrapper (chat, embed)
+  tools.js          — Tool definitions, schemas, execution
+  guardrails.js     — Input/output validation rules
+  logger.js         — Structured JSONL logging
+  feedback.js       — Thumbs up/down tracking
+  conversations.js  — In-memory conversation history management
+  config.js         — Environment config
+public/
+  index.html        — Chat UI with conversation support
+data/
+  docs/             — Source documents for RAG
+  embeddings.json   — Pre-computed embeddings
+  logs/             — Daily JSONL log files
 ```
 
 ## Tech Stack
@@ -150,5 +206,6 @@ curl.exe -X POST http://localhost:3000/query -H "Content-Type: application/json"
 **LLM**: OpenAI (GPT-4o-mini for routing/verification, GPT-4o-mini for answers)
 **Embeddings**: OpenAI text-embedding-3-small
 **Vector Store**: Custom in-process store (cosine similarity over pre-computed embeddings)
+**Conversations**: In-memory message history (per-session)
 **Logging**: JSONL files, one per day
 **Feedback**: Local JSON file
